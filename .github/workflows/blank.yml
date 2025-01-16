@@ -51,10 +51,6 @@ jobs:
           # Disable the safety checker (optional, speeds up generation)
           pipe.safety_checker = lambda images, clip_input: (images, False)
 
-          # Enable attention slicing and offload to reduce memory usage
-          pipe.enable_attention_slicing()
-          pipe.enable_sequential_cpu_offload()
-
           pipe = pipe.to('cpu')
 
           # Lower resolution + fewer steps => faster inference on CPU
