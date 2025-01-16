@@ -1,6 +1,7 @@
-name: Ollama with Free Ngrok
+name: Ollama with Persistent Ngrok Tunnel
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:  # Allows manual execution
 
 jobs:
   run-ollama-ngrok:
@@ -17,8 +18,8 @@ jobs:
 
       - name: Start Ollama Daemon
         run: |
-          sudo systemctl start ollama || ollama serve &
-          sleep 5  # Give it time to start
+          nohup ollama serve > ollama.log 2>&1 &
+          sleep 5  # Allow Ollama to initialize
 
       - name: Download LLM model
         run: |
@@ -33,12 +34,23 @@ jobs:
           sudo apt update && sudo apt install ngrok
           echo "Ngrok installed successfully."
 
-      - name: Start Ngrok Tunnel (Free Version)
+      - name: Start Ngrok Tunnel (Persistent)
         run: |
           nohup ngrok http 11434 --log=stdout > ngrok.log 2>&1 &
-          sleep 5  # Allow ngrok to start
+          sleep 10  # Give Ngrok time to establish the tunnel
 
-      - name: Fetch and Display Free Ngrok URL
+      - name: Fetch and Display Ngrok URL
         run: |
-          NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
-          echo "Ollama LLM is running at: $NGROK_URL"
+          for i in {1..10}; do
+            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+            if [[ "$NGROK_URL" != "null" ]]; then
+              echo "Ollama LLM is running at: $NGROK_URL"
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Keep Action Alive
+        run: |
+          echo "Keeping the server alive..."
+          tail -f /dev/null  # Prevents GitHub Actions from exiting
