@@ -34,21 +34,25 @@ jobs:
           sudo apt update && sudo apt install ngrok
           echo "Ngrok installed successfully."
 
-      - name: Start Ngrok Tunnel (Persistent)
+       - name: Start Ngrok Tunnel
         run: |
           nohup ngrok http 11434 --log=stdout > ngrok.log 2>&1 &
-          sleep 10  # Give Ngrok time to establish the tunnel
+          sleep 15  # Increased to ensure the tunnel is established
 
-      - name: Fetch and Display Ngrok URL
+      - name: Fetch Ngrok URL (with retries)
         run: |
-          for i in {1..10}; do
+          echo "⏳ Waiting for Ngrok to provide a public URL..."
+          for i in {1..20}; do  # Increased retries
             NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
-            if [[ "$NGROK_URL" != "null" ]]; then
-              echo "Ollama LLM is running at: $NGROK_URL"
-              break
+            if [[ "$NGROK_URL" != "null" && "$NGROK_URL" != "" ]]; then
+              echo "✅ Ollama LLM is running at: $NGROK_URL"
+              echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV  # Save for later use
+              exit 0
             fi
             sleep 5
           done
+          echo "❌ ERROR: Ngrok did not return a public URL."
+          exit 1
 
       - name: Keep Action Alive
         run: |
