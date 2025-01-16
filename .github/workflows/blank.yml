@@ -32,7 +32,7 @@ jobs:
           curl -sSL https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -o ngrok.zip
           unzip ngrok.zip
           chmod +x ngrok
-          mv ngrok /usr/local/bin/ngrok
+          mv ngrok $HOME/ngrok
           echo "✅ Ngrok installed."
 
       - name: Authenticate Ngrok
@@ -43,7 +43,7 @@ jobs:
 
       - name: Start Ngrok Tunnel
         run: |
-          nohup ngrok http 11434 > ngrok.log 2>&1 &
+          nohup $HOME/ngrok http 11434 > ngrok.log 2>&1 &
           sleep 15
 
       - name: Fetch Ngrok URL (with retries)
