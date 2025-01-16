@@ -1,51 +1,57 @@
-name: Ollama with Persistent Ngrok Tunnel
+name: Ngrok Tunnel for App
 
 on:
-  workflow_dispatch:  # Allows manual execution
+  workflow_dispatch:
 
 jobs:
-  run-ollama-ngrok:
+  run:
     runs-on: ubuntu-latest
     steps:
-
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-
-      - name: Download & Install Ngrok
+      - name: Install Dependencies
         run: |
-          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | \
-          sudo gpg --dearmor -o /etc/apt/keyrings/ngrok.gpg && \
-          echo "deb [signed-by=/etc/apt/keyrings/ngrok.gpg] https://ngrok-agent.s3.amazonaws.com buster main" | \
-          sudo tee /etc/apt/sources.list.d/ngrok.list && \
-          sudo apt update && sudo apt install ngrok
+          curl -sSL https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -o ngrok.zip
+          unzip ngrok.zip
+          chmod +x ngrok
+          mv ngrok /usr/local/bin/ngrok
+          echo "✅ Ngrok installed."
 
       - name: Authenticate Ngrok
         run: |
-          ngrok authtoken $NGROK_AUTH_TOKEN
-        env:
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          ngrok authtoken ${{ secrets.NGROK_AUTHTOKEN }}
+          echo "✅ Ngrok authenticated."
 
       - name: Start Ngrok Tunnel
         run: |
-          ngrok http http://localhost:8080
+          nohup ngrok http 3000 > ngrok.log 2>&1 &  # Change port if needed
+          sleep 10
+          echo "✅ Ngrok started."
 
-      - name: Fetch Ngrok URL (with retries)
+      - name: Fetch Ngrok Public URL
         run: |
-          echo "⏳ Waiting for Ngrok to provide a public URL..."
+          echo "⏳ Fetching Ngrok URL..."
           for i in {1..20}; do
-            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' || echo "null")
             if [[ "$NGROK_URL" != "null" && "$NGROK_URL" != "" ]]; then
-              echo "✅ Ollama LLM is running at: $NGROK_URL"
+              echo "🚀 Ngrok Public URL: $NGROK_URL"
               echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
               exit 0
             fi
+            echo "🔄 Retrying in 5 seconds..."
             sleep 5
           done
           echo "❌ ERROR: Ngrok did not return a public URL."
           exit 1
 
-      - name: Keep Action Alive
+      - name: Start Application
         run: |
-          echo "🔄 Keeping the server alive..."
+          npm install
+          nohup npm start > app.log 2>&1 &
+          echo "✅ Application started."
+
+      - name: Keep Process Alive
+        run: |
+          echo "🔄 Keeping the process alive..."
           tail -f /dev/null
