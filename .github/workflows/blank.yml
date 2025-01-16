@@ -1,64 +1,58 @@
-name: Ngrok Tunnel for App
+name: Test Webhook Server
 
-on:
+on: 
   workflow_dispatch:
+    # You can also trigger on push/pull_request if you like.
+    # This example uses workflow_dispatch for manual triggers.
 
 jobs:
-  run:
+  run-webhook-server:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v3
 
-      - name: Install Dependencies
-        run: |
-          # curl -sSL https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -o ngrok.zip
-          # unzip ngrok.zip
-          # chmod +x ngrok
-          # mv ngrok /usr/local/bin/ngrok
-          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | \
-          sudo gpg --dearmor -o /etc/apt/keyrings/ngrok.gpg && \
-          echo "deb [signed-by=/etc/apt/keyrings/ngrok.gpg] https://ngrok-agent.s3.amazonaws.com buster main" | \
-          sudo tee /etc/apt/sources.list.d/ngrok.list && \
-          sudo apt update && sudo apt install ngrok
-          echo "✅ Ngrok installed."
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'  # or the version you need
 
-      - name: Authenticate Ngrok
-        run: |
-          ngrok authtoken $NGROK_AUTH_TOKEN
-        env:
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-
-      - name: Start Ngrok Tunnel
-        run: |
-          ngrok update
-          ngrok http 3000 
-          sleep 10
-          echo "✅ Ngrok started."
-
-      - name: Fetch Ngrok Public URL
-        run: |
-          echo "⏳ Fetching Ngrok URL..."
-          for i in {1..20}; do
-            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' || echo "null")
-            if [[ "$NGROK_URL" != "null" && "$NGROK_URL" != "" ]]; then
-              echo "🚀 Ngrok Public URL: $NGROK_URL"
-              echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
-              exit 0
-            fi
-            echo "🔄 Retrying in 5 seconds..."
-            sleep 5
-          done
-          echo "❌ ERROR: Ngrok did not return a public URL."
-          exit 1
-
-      - name: Start Application
+      - name: Install dependencies
         run: |
           npm install
-          nohup npm start > app.log 2>&1 &
-          echo "✅ Application started."
 
-      - name: Keep Process Alive
+      - name: Install ngrok
         run: |
-          echo "🔄 Keeping the process alive..."
-          tail -f /dev/null
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+          unzip ngrok-stable-linux-amd64.zip -d /usr/local/bin
+          ngrok version
+
+      - name: Start ngrok tunnel
+        run: |
+          # Spin up ngrok to tunnel port 3000 publicly
+          ngrok http 3000 --log=stdout > ngrok.log 2>&1 &
+          # Wait for ngrok to initialize
+          sleep 5
+
+      - name: Retrieve ngrok public URL
+        id: ngrok-url
+        run: |
+          # Query ngrok API to get the public URL
+          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+        # We'll store NGROK_URL in GitHub Actions environment variable for later use
+
+      - name: Show the public URL
+        run: |
+          echo "Your public tunnel URL is: $NGROK_URL"
+          echo "Use this URL as the webhook target."
+
+      - name: Keep the job alive (for testing)
+        run: |
+          echo "Keeping the job alive to receive webhook events..."
+          echo "Press Ctrl+C or cancel the workflow run once you've tested your webhook."
+          sleep 600
+          # The above sleeps for 600 seconds (10 minutes).
+          # Adjust to how long you want to keep the server up.
