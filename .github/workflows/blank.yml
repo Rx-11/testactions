@@ -1,58 +1,59 @@
-name: Test Webhook Server
+name: Generate Dog Image
 
-# Manually trigger for testing
-on: 
-  workflow_dispatch:
-
-# Ensure we have write permissions so we can push to the repo
-permissions:
-  contents: write
+on:
+  workflow_dispatch:  # Allows you to trigger this workflow manually in the Actions tab
 
 jobs:
-  run-webhook-server:
+  generate_and_commit:
     runs-on: ubuntu-latest
+
+    # This permission is needed to push changes (i.e., to commit generated images).
+    permissions:
+      contents: write
+
     steps:
-      - name: Check out repository
+      - name: Check out the repository
         uses: actions/checkout@v3
+        with:
+          persist-credentials: false  # We'll set up our own git credentials for commit
 
-      - name: Install ngrok
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
-          wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-          unzip ngrok-stable-linux-amd64.zip -d /usr/local/bin
-          ngrok version
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      - name: Start ngrok tunnel
+      - name: Install dependencies
         run: |
-          # Spin up ngrok to tunnel port 3000 publicly
-          ngrok http 3000 --log=stdout > ngrok.log 2>&1 &
-          sleep 5  # wait for ngrok to fully initialize
+          # Install CPU-based PyTorch, Diffusers, Transformers, Accelerate, Safetensors, etc.
+          python -m pip install --upgrade pip
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install diffusers transformers accelerate safetensors
 
-      - name: Retrieve ngrok public URL
-        id: ngrok-url
+      - name: Generate dog image
         run: |
-          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
-          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+          echo "Generating dog image via Stable Diffusion..."
+          python -c "
+          import torch
+          from diffusers import StableDiffusionPipeline
 
-      - name: Show the public URL
-        run: |
-          echo "Your public tunnel URL is: $NGROK_URL"
-          echo "Use this URL as the webhook target."
+          model_id = 'runwayml/stable-diffusion-v1-5'
+          pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float32)
+          pipe = pipe.to('cpu')
 
-      - name: Write public URL to a file
+          prompt = 'A cute dog playing fetch in a sunny park, ultra realistic, 4K photography'
+          image = pipe(prompt).images[0]
+          image.save('dog.png')
+          "
+      
+      - name: Configure git
         run: |
-          echo "$NGROK_URL" > server_url.txt
-
-      - name: Commit the file
+          git config --global user.email "triksters123@gmail.com"
+          git config --global user.name "Rx-11"
+      
+      - name: Commit and push changes
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add server_url.txt
-          git commit -m "Add ngrok public URL from workflow run"
+          git add dog.png
+          git commit -m "chore: generate dog image"
           git push
-
-      - name: Keep the job alive (for testing)
-        run: |
-          echo "Keeping the job alive to receive webhook events..."
-          sleep 300
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
