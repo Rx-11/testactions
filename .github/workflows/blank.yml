@@ -1,0 +1,44 @@
+name: Ollama with Free Ngrok
+
+on: workflow_dispatch
+
+jobs:
+  run-ollama-ngrok:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          echo "Ollama installed successfully."
+
+      - name: Start Ollama Daemon
+        run: |
+          sudo systemctl start ollama || ollama serve &
+          sleep 5  # Give it time to start
+
+      - name: Download LLM model
+        run: |
+          ollama pull qwen:0.5b  # Change to your preferred model
+          echo "Model downloaded successfully."
+          ollama run qwen:0.5b
+
+      - name: Install Ngrok (Free Version)
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update && sudo apt install ngrok
+          echo "Ngrok installed successfully."
+
+      - name: Start Ngrok Tunnel (Free Version)
+        run: |
+          nohup ngrok http 11434 --log=stdout > ngrok.log 2>&1 &
+          sleep 5  # Allow ngrok to start
+
+      - name: Fetch and Display Free Ngrok URL
+        run: |
+          NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+          echo "Ollama LLM is running at: $NGROK_URL"
