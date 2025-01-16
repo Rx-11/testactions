@@ -27,7 +27,7 @@ jobs:
           echo "Model downloaded successfully."
           ollama run qwen:0.5b
 
-       - name: Download & Install Ngrok
+      - name: Download & Install Ngrok
         run: |
           curl -sSL https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -o ngrok.zip
           unzip ngrok.zip
