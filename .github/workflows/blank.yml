@@ -37,7 +37,7 @@ jobs:
 
       - name: Authenticate Ngrok
         run: |
-          ngrok authtoken $NGROK_AUTH_TOKEN
+          $HOME/ngrok authtoken $NGROK_AUTH_TOKEN
         env:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
