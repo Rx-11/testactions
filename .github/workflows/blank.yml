@@ -27,32 +27,33 @@ jobs:
           echo "Model downloaded successfully."
           ollama run qwen:0.5b
 
-      - name: Install Ngrok (Free Version)
+       - name: Download & Install Ngrok
         run: |
-          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-          sudo apt update && sudo apt install ngrok
-          echo "Ngrok installed successfully."
+          curl -sSL https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip -o ngrok.zip
+          unzip ngrok.zip
+          chmod +x ngrok
+          mv ngrok /usr/local/bin/ngrok
+          echo "✅ Ngrok installed."
 
-      - name: Debug Ngrok API
-        run: curl -s http://localhost:4040/api/tunnels || echo "❌ Ngrok API is not responding"
+      - name: Authenticate Ngrok
+        run: |
+          ngrok authtoken $NGROK_AUTH_TOKEN
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
       - name: Start Ngrok Tunnel
         run: |
-          nohup ngrok http 11434 --log=stdout > ngrok.log 2>&1 &
-          sleep 15  # Increased to ensure the tunnel is established
-      - name: Debug Ngrok API
-        run: curl -s http://localhost:4040/api/tunnels || echo "❌ Ngrok API is not responding"
-
+          nohup ngrok http 11434 > ngrok.log 2>&1 &
+          sleep 15
 
       - name: Fetch Ngrok URL (with retries)
         run: |
           echo "⏳ Waiting for Ngrok to provide a public URL..."
-          for i in {1..20}; do  # Increased retries
+          for i in {1..20}; do
             NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
             if [[ "$NGROK_URL" != "null" && "$NGROK_URL" != "" ]]; then
               echo "✅ Ollama LLM is running at: $NGROK_URL"
-              echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV  # Save for later use
+              echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
               exit 0
             fi
             sleep 5
@@ -62,5 +63,5 @@ jobs:
 
       - name: Keep Action Alive
         run: |
-          echo "Keeping the server alive..."
-          tail -f /dev/null  # Prevents GitHub Actions from exiting
+          echo "🔄 Keeping the server alive..."
+          tail -f /dev/null
