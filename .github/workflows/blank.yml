@@ -49,8 +49,11 @@ jobs:
           pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
 
           # Disable the safety checker (optional, speeds up generation)
-          pipe.safety_checker = lambda images, clip_input: (images, False)
+          pipe.safety_checker = lambda images, clip_input: (images, [False] * len(images))
 
+          # Optional: enable attention slicing for CPU to reduce memory usage
+          pipe.enable_attention_slicing()
+          
           pipe = pipe.to('cpu')
 
           # Lower resolution + fewer steps => faster inference on CPU
