@@ -34,10 +34,16 @@ jobs:
           sudo apt update && sudo apt install ngrok
           echo "Ngrok installed successfully."
 
+      - name: Debug Ngrok API
+        run: curl -s http://localhost:4040/api/tunnels || echo "❌ Ngrok API is not responding"
+
       - name: Start Ngrok Tunnel
         run: |
           nohup ngrok http 11434 --log=stdout > ngrok.log 2>&1 &
           sleep 15  # Increased to ensure the tunnel is established
+      - name: Debug Ngrok API
+        run: curl -s http://localhost:4040/api/tunnels || echo "❌ Ngrok API is not responding"
+
 
       - name: Fetch Ngrok URL (with retries)
         run: |
