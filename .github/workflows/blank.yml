@@ -26,6 +26,7 @@ jobs:
 
       - name: Start Ngrok Tunnel
         run: |
+          ngrok update
           ngrok http 3000 
           sleep 10
           echo "✅ Ngrok started."
