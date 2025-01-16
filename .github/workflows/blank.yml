@@ -24,24 +24,48 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Install CPU-based PyTorch, Diffusers, Transformers, Accelerate, Safetensors, etc.
           python -m pip install --upgrade pip
+          # CPU-only PyTorch
           python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          # Diffusers & friends
           python -m pip install diffusers transformers accelerate safetensors
 
       - name: Generate dog image
         run: |
-          echo "Generating dog image via Stable Diffusion..."
+          echo "Generating dog image (optimized for CPU)..."
           python -c "
           import torch
-          from diffusers import StableDiffusionPipeline
+          from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler
 
           model_id = 'runwayml/stable-diffusion-v1-5'
-          pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float32)
+
+          print('Loading pipeline...')
+          pipe = StableDiffusionPipeline.from_pretrained(
+              model_id,
+              torch_dtype=torch.float32  # Keep float32 on CPU (fp16 on CPU can cause issues)
+          )
+
+          # Use a faster scheduler
+          pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+
+          # Disable the safety checker (optional, speeds up generation)
+          pipe.safety_checker = lambda images, clip_input: (images, False)
+
+          # Enable attention slicing and offload to reduce memory usage
+          pipe.enable_attention_slicing()
+          pipe.enable_sequential_cpu_offload()
+
           pipe = pipe.to('cpu')
 
+          # Lower resolution + fewer steps => faster inference on CPU
           prompt = 'A cute dog playing fetch in a sunny park, ultra realistic, 4K photography'
-          image = pipe(prompt).images[0]
+          image = pipe(
+            prompt,
+            height=256,
+            width=256,
+            num_inference_steps=20
+          ).images[0]
+
           image.save('dog.png')
           "
       
@@ -49,6 +73,9 @@ jobs:
         run: |
           git config --global user.email "triksters123@gmail.com"
           git config --global user.name "Rx-11"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
       
       - name: Commit and push changes
         run: |
